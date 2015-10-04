@@ -1,6 +1,4 @@
-var particleCount = (($(document).width() * $(document).height()) / (1920 * 1080)) * 1000; // total normal particle count
-var fleckCount = particleCount * 0.05; // total fleck count
-var bokehCount = particleCount * 0.15; // total bokeh count
+var particleCount = (($(document).width() * $(document).height()) / (1920 * 1080)) * baseParticleCount;
 
 //TODO: split main system into foreground and background particles
 var particles = new THREE.Geometry();
@@ -21,9 +19,6 @@ var bokehTexture = THREE.ImageUtils.loadTexture(
 	'./img/bokeh.png'
 )
 bokehTexture.minFilter = THREE.LinearFilter;
-
-var particleOpacity = 0.7;
-var bokehOpacity = 0.5;
 
 var pMaterial = new THREE.PointCloudMaterial({
 	color: song.getGenre() === 'BTC' ? 0x000000 : 0xFFFFFF,
@@ -46,34 +41,28 @@ var fleckMaterial = new THREE.PointCloudMaterial({
 var bokehMaterial = new THREE.PointCloudMaterial({
 	color: 0xFFFFFF,
 	opacity: bokehOpacity,
-	size: 50,
+	size: 100,
 	map: bokehTexture,
 	blending: THREE.AdditiveBlending,
 	transparent: true
 });
 
-var velocity = 2.2 * Math.pow($(document).width() / 1920, 4);
-
-var zPosRange = 350;
-
-var yVelRange = 3;
-
-var posBias = 4.5; // the higher the number the more center-biased the particles
-var velBias = 2.5;
+var velocityResScale = Math.pow(resRatio, 5);
+var fleckVelocity = maxParticleVelocity * fleckVelocityScalar;
 
 for (var p = 0; p < particleCount; p++) {
-	var z = Math.random() * zPosRange - (zPosRange / 2);
+	var z = biasedRandom(zPosRange, zPosBias) + zModifier;
 	var xRange = Math.abs(camera.position.z - z) * Math.tan(toRads(VIEW_ANGLE)) * 2; // maximum range on the x-axis at this z-value
 	var yRange = Math.abs(camera.position.z - z) * Math.tan(toRads(VIEW_ANGLE / ASPECT)) * 2; // maximum range on the y-axis at this z-value
 	var pX = Math.random() * xRange - xRange / 2,
-		pY = biasedRandom(yRange, posBias),
+		pY = centerBiasedRandom(yRange, xPosBias),
 		pZ = z,
 		particle = new THREE.Vector3(pX, pY, pZ);
 	  
 	  // create a velocity vector
 	particle.velocity = new THREE.Vector3(
-		velocity,
-		biasedRandom(yVelRange, velBias),
+		velocityResScale * (Math.random() * (maxParticleVelocity - minParticleVelocity) + minParticleVelocity),
+		velocityResScale * centerBiasedRandom(yVelRange, velBias),
 		0
 	);
 
@@ -81,9 +70,7 @@ for (var p = 0; p < particleCount; p++) {
 	particles.vertices.push(particle);
 }
 
-var fleckVelocity = velocity * 2;
-
-var fleckYVelRange = fleckVelocity * 0.75;
+fleckYVelScalar *= fleckVelocity;
 
 var fleckZ = 150;
 
@@ -99,8 +86,8 @@ for (var p = 0; p < fleckCount; p++) {
 	  
 	  // create a velocity vector
 	fleck.velocity = new THREE.Vector3(
-		fleckVelocity,
-		biasedRandom(fleckYVelRange, velBias),
+		velocityResScale * fleckVelocity,
+		velocityResScale * centerBiasedRandom(fleckYVelScalar, velBias),
 		0
 	);
 
@@ -108,15 +95,13 @@ for (var p = 0; p < fleckCount; p++) {
 	flecks.vertices.push(fleck);
 }
 
-var bokehMinVelocity = velocity * 0.15;
-var bokehMaxVelocity = velocity * 0.25;
-
 var bokehYVelRange = ((bokehMinVelocity + bokehMaxVelocity) * 0.5) * 2;
 
-var bokehZ = 250;
+var bokehZ = 200;
 
 for (var p = 0; p < bokehCount; p++) {
 	var z = bokehZ;
+    //var z = Math.random() * zPosRange - (zPosRange / 2);
 	var xRange = Math.abs(camera.position.z - z) * Math.tan(toRads(VIEW_ANGLE)) * 2; // maximum range on the x-axis at this z-value
 	var yRange = Math.abs(camera.position.z - z) * Math.tan(toRads(VIEW_ANGLE / ASPECT)) * 2; // maximum range on the y-axis at this z-value
 	var pX = Math.random() * xRange - xRange / 2,
@@ -127,8 +112,8 @@ for (var p = 0; p < bokehCount; p++) {
 	  
 	  // create a velocity vector
 	b.velocity = new THREE.Vector3(
-		Math.random() * (bokehMaxVelocity - bokehMinVelocity) + bokehMinVelocity,
-		Math.random() * bokehYVelRange - bokehYVelRange / 2,
+		velocityResScale * (Math.random() * (bokehMaxVelocity - bokehMinVelocity) + bokehMinVelocity),
+		velocityResScale * (Math.random() * bokehYVelRange - bokehYVelRange / 2),
 		0
 	);
 
@@ -152,7 +137,7 @@ bokehSystem.geometry.dynamic = true;
 
 // add it to the scene
 scene.add(particleSystem);
-if (song.getGenre() != 'BTC') {
+if (song.getGenre() != 'BTC' && song.getGenre() != 'Mirai Sekai') {
 	scene.add(fleckSystem);
 	scene.add(bokehSystem);
 }

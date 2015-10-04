@@ -1,14 +1,12 @@
-var leftChance = 0.92;
-var rightChance = 0.02;
-var topBottomChance = 0.06;
+var resRatio = $(document).width() / 1920;
 
 var frustumPadding = 50; // the units to pad the frustum by
 
 function isInView(particle) {
 	var translated = new THREE.Vector3();
 	var size = particle.bokeh ? bokehMaterial.size : (particle.fleck ? fleckMaterial.size : pMaterial.size);
-	translated.x = particle.x; // - size / 2;
-	translated.y = particle.y; // - (particle.y < camera.position.y ? 1 : -1) * size / 2;
+	translated.x = particle.x;
+	translated.y = particle.y;
 	translated.z = particle.z - camera.position.z;
 	if (translated.x < 0) {
 		translated.x += frustumPadding;
@@ -41,13 +39,17 @@ function resetParticle(particle) {
 	particle.y = pos.y;
 	particle.z = pos.z;
 
-	var yRange = particle.bokeh ? bokehYVelRange : (particle.fleck ? fleckYVelRange : yVelRange);
-	var velVector = new THREE.Vector3(
-		particle.bokeh ? Math.random() * (bokehMaxVelocity - bokehMinVelocity) + bokehMinVelocity : (particle.fleck ? fleckVelocity : velocity),
-		biasedRandom(yRange, velBias),
-		//Math.random() * yRange - yRange / 2,
+	var yRange = particle.bokeh ? bokehYVelRange : (particle.fleck ? fleckYVelScalar : yVelRange);
+	var velVector = new THREE.Vector3((side != 0 ? 0.5 : 1) *
+		particle.bokeh
+                ? Math.random() * (bokehMaxVelocity - bokehMinVelocity) + bokehMinVelocity
+                : (particle.fleck
+                        ? fleckVelocity
+                        : Math.random() * (maxParticleVelocity - minParticleVelocity) + minParticleVelocity),
+		centerBiasedRandom(yRange, velBias),
 		0
 	);
+    velVector = velVector.multiply(new THREE.Vector3(velocityResScale, velocityResScale, velocityResScale));
 	if (side == 0) {
 		particle.velocity = velVector;
 	} else if (side == 2) {
@@ -69,15 +71,15 @@ function resetParticle(particle) {
  * @return The generated spawn position
  */
 function getValidSpawnPosition(side, bokeh, fleck) {
-	var z = bokeh ? bokehZ : (fleck ? fleckZ : Math.random() * zPosRange - zPosRange / 2); // random z-value
+	var z = bokeh ? bokehZ : (fleck ? fleckZ : biasedRandom(zPosRange, zPosBias) + zModifier); // random z-value
 	if (side == 0 || fleck) { // left
 		var x = -getXRangeAtZ(z) / 2; // x-value intersecting the frustum at this z-value
 		var yRange = getYRangeAtZ(z); // maximum range on the y-axis at this z-value
-		var y = bokeh ? Math.random() * yRange - yRange / 2 : biasedRandom(yRange, posBias); // random y-value within calculated range
+		var y = bokeh ? Math.random() * yRange - yRange / 2 : centerBiasedRandom(yRange, xPosBias); // random y-value within calculated range
 	} else if (side == 2) { // right
 		var x = getXRangeAtZ(z) / 2;
 		var yRange = getYRangeAtZ(z);
-		var y = bokeh ? Math.random() * yRange - yRange / 2 : biasedRandom(yRange, posBias); // random y-value within calculated range
+		var y = bokeh ? Math.random() * yRange - yRange / 2 : centerBiasedRandom(yRange, xPosBias); // random y-value within calculated range
 	} else if (side == 1) { // top
 		var y = -getYRangeAtZ(z) / 2;
 		var xRange = getXRangeAtZ(z);
@@ -99,6 +101,7 @@ function getYRangeAtZ(z) {
 }
 
 function updateParticles() {
+	particleSystem.material.size = particleSize;
 	for (var i = 0; i < particles.vertices.length; i++) {
 		var particle = particles.vertices[i];
 		particle.x += particle.velocity.x * velMult;
@@ -170,8 +173,12 @@ function darken(hexString, factor) {
 	return newColor;
 }
 
+function centerBiasedRandom(range, bias) {
+	return biasedRandom(range / 2, bias) * (Math.random() >= 0.5 ? 1 : -1);
+}
+
 function biasedRandom(range, bias) {
-	return ((range / 2) - Math.pow(Math.random() * Math.pow(range / 2, bias), 1 / bias)) * (Math.random() >= 0.5 ? 1 : -1);
+	return (range - Math.pow(Math.random() * Math.pow(range, bias), 1 / bias));
 }
 
 function selectiveToUpperCase(str) {
